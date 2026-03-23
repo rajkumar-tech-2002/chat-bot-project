@@ -3,7 +3,7 @@ const db = require('../models');
 
 exports.basicChat = async (req, res) => {
   try {
-    const { question, category = "General" } = req.body;
+    const { question, visitor_id, category = "General" } = req.body;
     if (!question) {
        return res.status(400).json({ error: "Question is required." });
     }
@@ -12,6 +12,7 @@ exports.basicChat = async (req, res) => {
     // Save conversation 
     db.conversations.create({
       user_id: 1, // Mock user for now
+      visitor_id: visitor_id || null,
       question,
       answer,
       category
@@ -26,7 +27,7 @@ exports.basicChat = async (req, res) => {
 
 exports.ragChat = async (req, res) => {
   try {
-    const { question, category = "Admission" } = req.body;
+    const { question, visitor_id, category = "Admission" } = req.body;
     if (!question) {
        return res.status(400).json({ error: "Question is required." });
     }
@@ -34,6 +35,7 @@ exports.ragChat = async (req, res) => {
 
     db.conversations.create({
       user_id: 1,
+      visitor_id: visitor_id || null,
       question,
       answer,
       category

@@ -51,7 +51,7 @@ exports.verify = (req, res) => {
   const token = req.cookies.auth_token;
 
   if (!token) {
-    return res.status(401).send({ message: "No token provided!" });
+    return res.status(200).send({ authenticated: false, message: "No token provided!" });
   }
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {

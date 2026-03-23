@@ -64,9 +64,24 @@ const Admin = () => {
           )}
         </motion.div>
 
-        {/* Placeholder Logs Card */}
+        {/* System Control & Telemetry Card */}
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-white/40 border border-white/50 rounded-[2.5rem] p-10 flex flex-col">
-          <h2 className="text-2xl font-black text-slate-400 mb-8 tracking-tighter">System Telemetry</h2>
+          <div className="flex justify-between items-start mb-8">
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">System Control</h2>
+            <button 
+                onClick={async () => {
+                    if(window.confirm("Are you sure you want to clear the AI Knowledge Base? This will wipe all uploaded data from the AI memory.")) {
+                        const { clearKnowledgeBase } = await import('../services/api.service');
+                        await clearKnowledgeBase();
+                        alert("AI Memory Cleared Successfully.");
+                        window.location.reload();
+                    }
+                }}
+                className="px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm"
+            >
+                Reset AI Memory
+            </button>
+          </div>
           <div className="space-y-6 flex-1">
              {[1,2,3,4].map(i => (
                <div key={i} className="flex items-center space-x-4">
@@ -77,7 +92,7 @@ const Admin = () => {
           </div>
           <div className="mt-auto border-t border-slate-100 pt-8">
             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest leading-loose">
-              Conversation tracking and real-time<br/>backend telemetry syncing soon.
+              Knowledge base is stored in a volatile<br/>Semantic Vector Store for high performance.
             </p>
           </div>
         </motion.div>

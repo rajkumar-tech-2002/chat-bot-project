@@ -7,7 +7,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon --ignore knowledge_base.json server.js"
   },
   "keywords": [],
   "author": "",

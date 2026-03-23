@@ -5,6 +5,7 @@ import Landing from './pages/Landing';
 import Home from './pages/Home'; // This is our Chat page
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import { verifySession } from './services/api.service';
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -14,7 +15,11 @@ function App() {
     const checkAuth = async () => {
       try {
         const data = await verifySession();
-        if (data.user_id) setAuthenticated(true);
+        if (data && data.user_id) {
+          setAuthenticated(true);
+        } else {
+          setAuthenticated(false);
+        }
       } catch (err) {
         setAuthenticated(false);
       } finally {

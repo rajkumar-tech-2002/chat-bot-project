@@ -22,5 +22,6 @@ db.sequelize = sequelize;
 db.users = require("./user.model.js")(sequelize, Sequelize);
 db.conversations = require("./conversation.model.js")(sequelize, Sequelize);
 db.documents = require("./document.model.js")(sequelize, Sequelize);
+db.visitors = require("./visitor.model.js")(sequelize, Sequelize);
 
 module.exports = db;

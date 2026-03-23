@@ -5,14 +5,19 @@ const API_URL = 'http://localhost:3000/api';
 // Enable Sending Cookies in every request
 axios.defaults.withCredentials = true;
 
-export const basicChat = async (question) => {
-  const response = await axios.post(`${API_URL}/chat/basic`, { question });
+export const basicChat = async (question, visitor_id) => {
+  const response = await axios.post(`${API_URL}/chat/basic`, { question, visitor_id });
   return response.data;
 };
 
-export const ragChat = async (question) => {
-  const response = await axios.post(`${API_URL}/chat/rag`, { question });
+export const ragChat = async (question, visitor_id) => {
+  const response = await axios.post(`${API_URL}/chat/rag`, { question, visitor_id });
   return response.data;
+};
+
+export const registerVisitor = async (visitorData) => {
+    const response = await axios.post(`${API_URL}/visitors`, visitorData);
+    return response.data;
 };
 
 export const uploadDocument = async (file) => {
@@ -22,6 +27,11 @@ export const uploadDocument = async (file) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
   return response.data;
+};
+
+export const clearKnowledgeBase = async () => {
+    const response = await axios.delete(`${API_URL}/documents/clear`);
+    return response.data;
 };
 
 export const login = async (user_id, password) => {

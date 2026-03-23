@@ -16,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/chat', require('./routes/chat.routes'));
 app.use('/api/documents', require('./routes/document.routes'));
 app.use('/api/users', require('./routes/user.routes'));
+app.use('/api/visitors', require('./routes/visitor.routes'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to AI College Assistant API.' });
