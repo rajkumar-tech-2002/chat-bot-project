@@ -1,5 +1,5 @@
 const aiService = require('../services/ai.service');
-const db = require('../models');
+const { Conversation } = require('../models');
 
 exports.basicChat = async (req, res) => {
   try {
@@ -9,14 +9,9 @@ exports.basicChat = async (req, res) => {
     }
     const answer = await aiService.basicChat(question);
 
-    // Save conversation 
-    db.conversations.create({
-      user_id: 1, // Mock user for now
-      visitor_id: visitor_id || null,
-      question,
-      answer,
-      category
-    }).catch(err => console.error("Error saving conversation logs:", err));
+    // Save conversation
+    Conversation.create(1, visitor_id || null, question, answer, category)
+      .catch(err => console.error("Error saving conversation logs:", err));
 
     res.json({ answer });
   } catch (error) {
@@ -33,13 +28,8 @@ exports.ragChat = async (req, res) => {
     }
     const answer = await aiService.ragChat(question);
 
-    db.conversations.create({
-      user_id: 1,
-      visitor_id: visitor_id || null,
-      question,
-      answer,
-      category
-    }).catch(err => console.error("Error saving conversation logs:", err));
+    Conversation.create(1, visitor_id || null, question, answer, category)
+      .catch(err => console.error("Error saving conversation logs:", err));
 
     res.json({ answer });
   } catch (error) {

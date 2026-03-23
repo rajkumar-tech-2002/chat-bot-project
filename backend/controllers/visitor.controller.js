@@ -1,5 +1,4 @@
-const db = require("../models");
-const Visitor = db.visitors;
+const { Visitor } = require("../models");
 
 exports.create = async (req, res) => {
   try {
@@ -8,7 +7,7 @@ exports.create = async (req, res) => {
       return res.status(400).send({ message: "Content can not be empty!" });
     }
 
-    const visitor = await Visitor.create({ name, mobile });
+    const visitor = await Visitor.create(name, mobile);
     res.send(visitor);
   } catch (err) {
     res.status(500).send({ message: err.message || "Some error occurred while creating the Visitor." });

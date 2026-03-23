@@ -1,5 +1,6 @@
 const app = require('./app');
-const db = require('./models');
+const pool = require('./config/db.config');
+const { Document } = require('./models');
 const { PORT } = require('./config/env.config');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
@@ -8,7 +9,7 @@ const aiService = require('./services/ai.service');
 
 async function loadExistingDocuments() {
   try {
-    const docs = await db.documents.findAll();
+    const docs = await Document.findAll();
     if (docs.length === 0) return;
     
     // Check if store was already populated from knowledge_base.json
@@ -44,14 +45,16 @@ async function loadExistingDocuments() {
   }
 }
 
-db.sequelize.sync()
-  .then(async () => {
-    console.log("Synced db.");
+// Test DB connection then start server
+pool.getConnection()
+  .then(async (conn) => {
+    conn.release();
+    console.log("Database connected.");
     await loadExistingDocuments();
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}.`);
     });
   })
   .catch((err) => {
-    console.log("Failed to sync db: " + err.message);
+    console.log("Failed to connect to DB: " + err.message);
   });

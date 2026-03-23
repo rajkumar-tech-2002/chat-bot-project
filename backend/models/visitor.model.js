@@ -1,14 +1,26 @@
-module.exports = (sequelize, Sequelize) => {
-  const Visitor = sequelize.define("visitor", {
-    name: {
-      type: Sequelize.STRING,
-      allowNull: false
-    },
-    mobile: {
-      type: Sequelize.STRING,
-      allowNull: false
-    }
-  });
+const pool = require('../config/db.config');
 
-  return Visitor;
+const Visitor = {
+  create: async (name, mobile) => {
+    const [result] = await pool.execute(
+      'INSERT INTO visitors (name, mobile) VALUES (?, ?)',
+      [name, mobile]
+    );
+    return { id: result.insertId, name, mobile };
+  },
+
+  findAll: async () => {
+    const [rows] = await pool.execute('SELECT * FROM visitors ORDER BY id DESC');
+    return rows;
+  },
+
+  findById: async (id) => {
+    const [rows] = await pool.execute(
+      'SELECT * FROM visitors WHERE id = ? LIMIT 1',
+      [id]
+    );
+    return rows[0] || null;
+  }
 };
+
+module.exports = Visitor;

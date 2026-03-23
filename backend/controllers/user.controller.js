@@ -1,5 +1,4 @@
-const db = require("../models");
-const User = db.users;
+const { User } = require("../models");
 const jwt = require('jsonwebtoken');
 
 exports.login = async (req, res) => {
@@ -10,7 +9,7 @@ exports.login = async (req, res) => {
       return res.status(400).send({ message: "UserId and password are required!" });
     }
 
-    const user = await User.findOne({ where: { user_id: user_id } });
+    const user = await User.findOne(user_id);
 
     if (!user) {
       return res.status(404).send({ message: "User not found." });

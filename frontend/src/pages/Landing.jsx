@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare, ShieldCheck, GraduationCap, Building2, Users, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import VoiceVisualizer from '../components/VoiceVisualizer';
+import LineWave from '../components/LineWave';
 
 const Landing = () => {
     const features = [
@@ -19,8 +21,9 @@ const Landing = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8 }}
                 >
+                    <VoiceVisualizer />
                     <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 text-slate-900">
-                        Welcome to <br/>
+                        Welcome to <br />
                         <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">Campus AI Portal</span>
                     </h1>
                     <p className="text-xl text-slate-500 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
@@ -49,6 +52,9 @@ const Landing = () => {
                         </Link>
                     </div>
                 </motion.div>
+
+                {/* Line Wave Animation */}
+                <LineWave />
 
                 {/* Glassmorphic Background Blur */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px] -z-10 animate-pulse"></div>
