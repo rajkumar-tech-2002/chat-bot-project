@@ -20,6 +20,14 @@ const Visitor = {
       [id]
     );
     return rows[0] || null;
+  },
+  
+  findByMobile: async (mobile) => {
+    const [rows] = await pool.execute(
+      'SELECT * FROM visitors WHERE mobile = ? LIMIT 1',
+      [mobile]
+    );
+    return rows[0] || null;
   }
 };
 

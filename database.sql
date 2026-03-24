@@ -31,3 +31,13 @@ CREATE TABLE IF NOT EXISTS documents (
   createdAt DATETIME NOT NULL,
   updatedAt DATETIME NOT NULL
 );
+
+-- 5. Create Voice Logs Table (Zhara Voice Assistant)
+CREATE TABLE IF NOT EXISTS voice_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  visitor_id INT NULL,
+  question_text TEXT,
+  answer_text TEXT,
+  audio_path VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

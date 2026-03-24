@@ -2,10 +2,22 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare, ShieldCheck, GraduationCap, Building2, Users, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLottie } from 'lottie-react';
+import robotAnimation from '../assets/robot.json';
 import VoiceVisualizer from '../components/VoiceVisualizer';
 import LineWave from '../components/LineWave';
 
 const Landing = () => {
+    const LottieView = () => {
+        const options = {
+            animationData: robotAnimation,
+            loop: true,
+            autoplay: true,
+        };
+        const { View } = useLottie(options);
+        return <div className="w-full h-full flex items-center justify-center scale-125">{View}</div>;
+    };
+
     const features = [
         { icon: <Building2 className="text-blue-500" />, title: "Campus Info", desc: "Get instant details about courses, fees, and campus facilities." },
         { icon: <Users className="text-emerald-500" />, title: "Student Community", desc: "Connect with our AI-powered student support system for any queries." },
@@ -105,6 +117,30 @@ const Landing = () => {
                     </div>
                 </div>
             </section>
+            
+            {/* 🤖 Floating Robot Assistant */}
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.5, x: 100 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                transition={{ delay: 1, duration: 0.8, type: 'spring' }}
+                className="fixed bottom-8 right-8 z-50 group"
+            >
+                <Link to="/zhara" className="relative block">
+                    {/* Tooltip */}
+                    <div className="absolute bottom-[110%] right-0 mb-4 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none translate-y-2 group-hover:translate-y-0">
+                        <div className="bg-slate-900/90 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-2xl shadow-2xl whitespace-nowrap border border-white/10">
+                             ✨ Talk to Zhara AI
+                        </div>
+                        {/* Tooltip Arrow */}
+                        <div className="w-2.5 h-2.5 bg-slate-900/90 rotate-45 absolute -bottom-1.5 right-8 border-r border-b border-white/10"></div>
+                    </div>
+
+                    {/* Robot Container */}
+                    <div className="w-40 h-40">
+                        <LottieView />
+                    </div>
+                </Link>
+            </motion.div>
         </div>
     );
 };

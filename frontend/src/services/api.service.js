@@ -20,6 +20,11 @@ export const registerVisitor = async (visitorData) => {
     return response.data;
 };
 
+export const lookupVisitor = async (mobile) => {
+    const response = await axios.get(`${API_URL}/visitors/lookup/${mobile}`);
+    return response.data;
+};
+
 export const uploadDocument = async (file) => {
   const formData = new FormData();
   formData.append('document', file);
@@ -46,5 +51,12 @@ export const logout = async () => {
 
 export const verifySession = async () => {
     const response = await axios.get(`${API_URL}/users/verify`);
+    return response.data;
+};
+
+export const saveAudio = async (formData) => {
+    const response = await axios.post(`${API_URL}/audio/save`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data;
 };

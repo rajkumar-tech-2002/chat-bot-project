@@ -22,3 +22,16 @@ exports.findAll = async (req, res) => {
     res.status(500).send({ message: err.message || "Some error occurred while retrieving visitors." });
   }
 };
+
+exports.lookup = async (req, res) => {
+  try {
+    const { mobile } = req.params;
+    const visitor = await Visitor.findByMobile(mobile);
+    if (!visitor) {
+      return res.status(404).send({ message: "Visitor not found." });
+    }
+    res.send(visitor);
+  } catch (err) {
+    res.status(500).send({ message: err.message || "Error looking up visitor." });
+  }
+};

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Loader, Sparkles, Mic, MicOff, User, Phone, ArrowRight } from 'lucide-react';
+import { Send, Loader, Sparkles, Mic, MicOff, User, Phone, ArrowRight, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ragChat, registerVisitor } from '../services/api.service';
+import { ragChat, registerVisitor, lookupVisitor } from '../services/api.service';
 
 const Home = () => {
     const [messages, setMessages] = useState([]);
@@ -11,20 +11,27 @@ const Home = () => {
     const [recognition, setRecognition] = useState(null);
     
     // Onboarding State
-    const [onboardingStep, setOnboardingStep] = useState(0); // 1: Name, 2: Mobile, 0: Done
+    const [step, setStep] = useState('askMobile'); // 'askMobile' | 'askName' | 'chat'
     const [visitor, setVisitor] = useState({ name: '', mobile: '', id: null });
 
+    const maskMobile = (mobile) => {
+        if (!mobile) return "";
+        return mobile.length > 4 
+            ? mobile.slice(0, 2) + "*****" + mobile.slice(-4)
+            : "*****" + mobile.slice(-2);
+    };
+
     useEffect(() => {
-        // Initial setup
-        const savedVisitor = localStorage.getItem('campus_visitor');
-        if (savedVisitor) {
-            const parsedVisitor = JSON.parse(savedVisitor);
+        // Initial setup - Use sessionStorage for shared device safety
+        const savedSession = sessionStorage.getItem('campus_visitor_session');
+        if (savedSession) {
+            const parsedVisitor = JSON.parse(savedSession);
             setVisitor(parsedVisitor);
-            setOnboardingStep(0);
+            setStep('chat');
             setMessages([{ role: 'assistant', content: `Welcome back, ${parsedVisitor.name}! How can I assist you today?` }]);
         } else {
-            setOnboardingStep(1);
-            setMessages([{ role: 'assistant', content: "Hello! I am your AI Campus Guide. Before we start, may I know your full name?" }]);
+            setStep('askMobile');
+            setMessages([{ role: 'assistant', content: "Hi! I'm Zhara, your AI Campus Guide 👋\nTo get started, please enter your mobile number." }]);
         }
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -72,9 +79,9 @@ const Home = () => {
         }
     };
 
-    const handleSend = async (e) => {
+    const handleSend = async (e, directVal = null) => {
         if (e) e.preventDefault();
-        const userText = input.trim();
+        const userText = directVal || input.trim();
         if (!userText) return;
 
         if (isListening) {
@@ -82,44 +89,67 @@ const Home = () => {
             setIsListening(false);
         }
 
-        // Add user message immediately
-        const userMsg = { role: 'user', content: userText };
-        setMessages(prev => [...prev, userMsg]);
+        // Add user message to log (mask mobile if in askMobile step)
+        const displayMsg = step === 'askMobile' ? maskMobile(userText) : userText;
+        setMessages(prev => [...prev, { role: 'user', content: displayMsg }]);
         setInput('');
 
-        // Handle Onboarding Steps
-        if (onboardingStep === 1) {
-            setVisitor(prev => ({ ...prev, name: userText }));
-            setOnboardingStep(2);
-            setTimeout(() => {
-                setMessages(prev => [...prev, { role: 'assistant', content: `Nice to meet you, ${userText}! And what is your mobile number?` }]);
-            }, 600);
-            return;
-        }
+        // 1. Capture Mobile Number
+        if (step === 'askMobile') {
+            const mobile = userText.replace(/\D/g, "");
+            if (mobile.length !== 10) {
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { role: 'assistant', content: "That doesn't look like a 10-digit number. 🧐 Please try again." }]);
+                }, 500);
+                return;
+            }
 
-        if (onboardingStep === 2) {
             setIsLoading(true);
             try {
-                const visitorData = { name: visitor.name, mobile: userText };
-                const registered = await registerVisitor(visitorData);
-                const updatedVisitor = { ...visitorData, id: registered.id };
-                
-                setVisitor(updatedVisitor);
-                localStorage.setItem('campus_visitor', JSON.stringify(updatedVisitor));
-                setOnboardingStep(0);
-                
+                const existingVisitor = await lookupVisitor(mobile);
+                setVisitor(existingVisitor);
+                sessionStorage.setItem('campus_visitor_session', JSON.stringify(existingVisitor));
+                setStep('chat');
                 setTimeout(() => {
-                    setMessages(prev => [...prev, { role: 'assistant', content: "Thank you! Registration complete. You can now ask me any questions about the campus." }]);
+                    setMessages(prev => [...prev, { role: 'assistant', content: `Welcome back, ${existingVisitor.name}! 😊 How can I help you today?` }]);
                 }, 600);
             } catch (error) {
-                setMessages(prev => [...prev, { role: 'assistant', content: "I had trouble saving your details. Let's try again with your mobile number?" }]);
+                // New User -> Ask for Name
+                setVisitor(prev => ({ ...prev, mobile }));
+                setStep('askName');
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { role: 'assistant', content: "Nice to meet you! What is your full name?" }]);
+                }, 600);
             } finally {
                 setIsLoading(false);
             }
             return;
         }
 
-        // Normal RAG Chat
+        // 2. Capture Name
+        if (step === 'askName') {
+            setIsLoading(true);
+            try {
+                const visitorData = { name: userText, mobile: visitor.mobile };
+                const registered = await registerVisitor(visitorData);
+                const updatedVisitor = { ...visitorData, id: registered.id };
+                
+                setVisitor(updatedVisitor);
+                sessionStorage.setItem('campus_visitor_session', JSON.stringify(updatedVisitor));
+                setStep('chat');
+                
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { role: 'assistant', content: `Welcome, ${userText}! How can I help you today?` }]);
+                }, 600);
+            } catch (error) {
+                setMessages(prev => [...prev, { role: 'assistant', content: "I had trouble saving your details. Could you try telling me your name again?" }]);
+            } finally {
+                setIsLoading(false);
+            }
+            return;
+        }
+
+        // 3. Normal RAG Chat
         setIsLoading(true);
         try {
             const response = await ragChat(userText, visitor.id);
@@ -132,7 +162,7 @@ const Home = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full pt-36 pb-10 px-4">
+        <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full pt-36 pb-10 px-4 relative">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex justify-between items-center text-slate-500">
         <div className="flex items-center space-x-4">
             <div className="p-3 bg-gradient-to-br from-blue-600 to-violet-600 rounded-2xl shadow-lg shadow-blue-500/20">
@@ -147,14 +177,14 @@ const Home = () => {
         {visitor.name && (
             <button 
                 onClick={() => {
-                    if(window.confirm("Restart conversation and clear your session?")) {
-                        localStorage.removeItem('campus_visitor');
+                    if(window.confirm("End your session and clear history?")) {
+                        sessionStorage.removeItem('campus_visitor_session');
                         window.location.reload();
                     }
                 }}
                 className="px-4 py-2 bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-transparent hover:border-red-100 shadow-sm"
             >
-                Reset Session
+                End Session
             </button>
         )}
       </motion.div>
@@ -225,11 +255,11 @@ const Home = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-                onboardingStep === 1 ? "Enter your name..." : 
-                onboardingStep === 2 ? "Enter mobile number..." : 
+                step === 'askMobile' ? "Ente your mobile number..." : 
+                step === 'askName' ? "Tell me your name..." : 
                 isListening ? "Listening deeply..." : "Search academic data, hostel rules, courses..."
             }
-            className={`w-full bg-transparent text-slate-900 px-4 py-4 min-h-[55px] outline-none placeholder-slate-400 font-bold transition-all ${isListening || onboardingStep > 0 ? 'placeholder-blue-400' : ''}`}
+            className={`w-full bg-transparent text-slate-900 px-4 py-4 min-h-[55px] outline-none placeholder-slate-400 font-bold transition-all ${isListening || step !== 'chat' ? 'placeholder-blue-400' : ''}`}
           />
           
           <button 

@@ -5,11 +5,14 @@ import Landing from './pages/Landing';
 import Home from './pages/Home'; // This is our Chat page
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import Zhara from './pages/Zhara';
+import ZharaChat from './pages/ZharaChat';
 import { verifySession } from './services/api.service';
+import { Toaster } from 'sonner';
 
 function AppContent({ authenticated, setAuthenticated }) {
   const location = useLocation();
-  const isLoginPage = location.pathname === '/login';
+  const shouldHideNavbar = location.pathname === '/login';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans relative overflow-hidden">
@@ -23,13 +26,15 @@ function AppContent({ authenticated, setAuthenticated }) {
       {/* Subtle Paper Texture Overlay */}
       <div className="fixed inset-0 -z-10 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
-      {!isLoginPage && <Navbar authenticated={authenticated} setAuthenticated={setAuthenticated} />}
+      {!shouldHideNavbar && <Navbar authenticated={authenticated} setAuthenticated={setAuthenticated} />}
 
       {/* Global Page Container */}
       <main className="flex-1 flex flex-col w-full relative z-10">
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/chat" element={<Home />} />
+          <Route path="/zhara" element={<Zhara />} />
+          <Route path="/zhara-chat" element={<ZharaChat />} />
           <Route path="/login" element={<Login setAuthenticated={setAuthenticated} />} />
           <Route 
             path="/admin" 
@@ -75,6 +80,7 @@ function App() {
 
   return (
     <Router>
+      <Toaster position="top-right" richColors closeButton />
       <AppContent authenticated={authenticated} setAuthenticated={setAuthenticated} />
     </Router>
   );
