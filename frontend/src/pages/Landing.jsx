@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { MessageSquare, ShieldCheck, GraduationCap, Building2, Users, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLottie } from 'lottie-react';
-import robotAnimation from '../assets/robot.json';
+import robotAnimation from '../assets/hello.json';
 import VoiceVisualizer from '../components/VoiceVisualizer';
 import LineWave from '../components/LineWave';
 
@@ -129,7 +129,7 @@ const Landing = () => {
                     {/* Tooltip */}
                     <div className="absolute bottom-[110%] right-0 mb-4 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none translate-y-2 group-hover:translate-y-0">
                         <div className="bg-slate-900/90 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-2xl shadow-2xl whitespace-nowrap border border-white/10">
-                             ✨ Talk to Zhara AI
+                             ✨ Talk to Avatar
                         </div>
                         {/* Tooltip Arrow */}
                         <div className="w-2.5 h-2.5 bg-slate-900/90 rotate-45 absolute -bottom-1.5 right-8 border-r border-b border-white/10"></div>
