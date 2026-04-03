@@ -28,7 +28,8 @@ const ZharaChat = () => {
 
     // Screens logic handled by routing now
     const [onboardingStep, setOnboardingStep] = useState(0);
-    const [visitor, setVisitor] = useState({ name: '', mobile: '', id: null });
+    const [visitor, setVisitor] = useState({ name: '', mobile: '', email: '', id: null });
+    const [isEndingSession, setIsEndingSession] = useState(false);
 
     // Voice state
     const [isListening, setIsListening] = useState(false);
@@ -113,7 +114,11 @@ const ZharaChat = () => {
                     setChatLog([{ role: 'assistant', content: greeting }]);
                     setTimeout(() => speak(greeting, gender), 600);
                 } else if (currentOnboardingStep === 2) {
-                    const greeting = "Nice to meet you! What is your name?";
+                    const greeting = "Thank you. Now, please enter your email address to receive your chat report.";
+                    setChatLog([{ role: 'assistant', content: greeting }]);
+                    setTimeout(() => speak(greeting, gender), 600);
+                } else if (currentOnboardingStep === 3) {
+                    const greeting = "Great! Finally, what is your full name?";
                     setChatLog([{ role: 'assistant', content: greeting }]);
                     setTimeout(() => speak(greeting, gender), 600);
                 } else {
@@ -224,24 +229,72 @@ const ZharaChat = () => {
                 const existing = await lookupVisitor(mobile);
                 setVisitor(existing);
                 sessionStorage.setItem('campus_visitor_session', JSON.stringify(existing));
-                setOnboardingStep(0);
-                const welcomeMsg = `Welcome back, ${existing.name}! 😊 How can I assist you today?`;
-                setChatLog(prev => [...prev, { role: 'assistant', content: welcomeMsg }]);
-                speak(welcomeMsg, gender);
+                
+                // If existing visitor has no email, ask for it
+                if (!existing.email) {
+                    setOnboardingStep(2);
+                    const emailMsg = `Welcome back, ${existing.name}! We need your email address to send you the chat reports. What is your email?`;
+                    setChatLog(prev => [...prev, { role: 'assistant', content: emailMsg }]);
+                    speak(emailMsg, gender);
+                } else {
+                    setOnboardingStep(0);
+                    const welcomeMsg = `Welcome back, ${existing.name}! 😊 How can I assist you today?`;
+                    setChatLog(prev => [...prev, { role: 'assistant', content: welcomeMsg }]);
+                    speak(welcomeMsg, gender);
+                }
             } catch (err) {
                 setVisitor(prev => ({ ...prev, mobile }));
-                setOnboardingStep(2);
-                const nameMsg = "I don't think we've met! May I know your full name?";
+                setOnboardingStep(2); // NEW: Always go to Step 2 (Email) first for new visitors
+                const emailMsg = "I don't think we've met! May I have your email address first so I can send you the chat transcript?";
+                setChatLog(prev => [...prev, { role: 'assistant', content: emailMsg }]);
+                speak(emailMsg, gender);
+            }
+            return;
+        }
+
+        if (currentStep === 2) {
+            const email = question.toLowerCase().trim().replace(/\s/g, "");
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            // Standard validation
+            if (!emailRegex.test(email)) {
+                const retryMsg = "That doesn't look like a valid email address. Please say it again clearly or type it out.";
+                setChatLog(prev => [...prev, { role: 'assistant', content: retryMsg }]);
+                speak(retryMsg, gender);
+                return;
+            }
+
+            setVisitor(prev => ({ ...prev, email }));
+            
+            // If the visitor already has a name (from a lookup), we skip to chat
+            if (visitor.name) {
+                setOnboardingStep(0);
+                const welcomeMsg = `Thank you! I've updated your email. How can I help you today?`;
+                setChatLog(prev => [...prev, { role: 'assistant', content: welcomeMsg }]);
+                speak(welcomeMsg, gender);
+            } else {
+                // Otherwise, move to Step 3 (Name)
+                setOnboardingStep(3);
+                const nameMsg = "Perfect! Finally, what is your full name?";
                 setChatLog(prev => [...prev, { role: 'assistant', content: nameMsg }]);
                 speak(nameMsg, gender);
             }
             return;
         }
 
-        if (currentStep === 2) {
+        if (currentStep === 3) {
             setStatusText('Registering...');
             try {
-                const visitorData = { name: question, mobile: visitor.mobile };
+                // Ensure email is passed
+                if (!visitor.email) {
+                    setOnboardingStep(2);
+                    const emailMsg = "Wait, I still need your email address first. What is it?";
+                    setChatLog(prev => [...prev, { role: 'assistant', content: emailMsg }]);
+                    speak(emailMsg, gender);
+                    return;
+                }
+
+                const visitorData = { name: question, mobile: visitor.mobile, email: visitor.email };
                 const registered = await registerVisitor(visitorData);
                 const updated = { ...visitorData, id: registered.id };
                 setVisitor(updated);
@@ -251,6 +304,7 @@ const ZharaChat = () => {
                 setChatLog(prev => [...prev, { role: 'assistant', content: startMsg }]);
                 speak(startMsg, gender);
             } catch (err) {
+                console.error("Registration failed:", err);
                 const errMsg = "I had trouble saving your details. Could you tell me your name again?";
                 setChatLog(prev => [...prev, { role: 'assistant', content: errMsg }]);
                 speak(errMsg, gender);
@@ -283,6 +337,35 @@ const ZharaChat = () => {
             }
         }
     }, [gender, speak, onboardingStep, visitor]);
+
+    const handleEndSession = async () => {
+        if (!visitor.id) {
+            toast.error("No active session found.");
+            return;
+        }
+
+        setIsEndingSession(true);
+        const loadingToast = toast.loading("Generating report and sending email...");
+
+        try {
+            const { endSession: endSessionApi } = await import('../services/api.service');
+            await endSessionApi(visitor.id);
+
+            toast.success("Report sent to your email successfully! ✅", { id: loadingToast });
+            speak("Your conversation report has been sent to your email. Thank you for visiting!", gender);
+
+            // Clear session
+            sessionStorage.removeItem('campus_visitor_session');
+            setVisitor({ name: '', mobile: '', email: '', id: null });
+            setOnboardingStep(1);
+            setChatLog([]);
+        } catch (error) {
+            console.error("End session error:", error);
+            toast.error(error.response?.data?.error || "Failed to send report. Please check if your email is valid.", { id: loadingToast });
+        } finally {
+            setIsEndingSession(false);
+        }
+    };
 
     const toggleMute = useCallback(() => {
         if (!isMuted) synthRef.current.cancel();
@@ -320,6 +403,26 @@ const ZharaChat = () => {
 
             {/* Main area */}
             <div className="flex flex-col lg:flex-row flex-1 overflow-hidden relative z-10 pt-12">
+
+                {/* End Session Button - Top Right Floating */}
+                {onboardingStep === 0 && visitor.id && (
+                    <motion.button
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleEndSession}
+                        disabled={isEndingSession}
+                        className="absolute top-4 right-10 z-50 flex items-center gap-2 px-6 py-3 rounded-full bg-red-500 text-white font-bold shadow-lg shadow-red-500/20 hover:bg-red-600 transition-colors disabled:opacity-50"
+                    >
+                        {isEndingSession ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <LogOut size={18} />
+                        )}
+                        {isEndingSession ? 'Sending...' : 'End Session'}
+                    </motion.button>
+                )}
 
                 {/* ── Left: Premium Avatar Sidebar ── */}
                 <div className="flex flex-col items-center py-12 px-8 lg:w-96 shrink-0 lg:ml-6 lg:mb-6 rounded-[2.5rem] border border-white/60 bg-white/40 backdrop-blur-3xl shadow-[0_20px_60px_rgba(0,0,0,0.03)] relative overflow-hidden group">

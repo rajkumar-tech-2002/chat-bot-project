@@ -11,8 +11,9 @@ const Home = () => {
     const [recognition, setRecognition] = useState(null);
     
     // Onboarding State
-    const [step, setStep] = useState('askMobile'); // 'askMobile' | 'askName' | 'chat'
-    const [visitor, setVisitor] = useState({ name: '', mobile: '', id: null });
+    const [step, setStep] = useState('askMobile'); // 'askMobile' | 'askEmail' | 'askName' | 'chat'
+    const [visitor, setVisitor] = useState({ name: '', mobile: '', email: '', id: null });
+    const [isEndingSession, setIsEndingSession] = useState(false);
 
     const maskMobile = (mobile) => {
         if (!mobile) return "";
@@ -27,8 +28,14 @@ const Home = () => {
         if (savedSession) {
             const parsedVisitor = JSON.parse(savedSession);
             setVisitor(parsedVisitor);
-            setStep('chat');
-            setMessages([{ role: 'assistant', content: `Welcome back, ${parsedVisitor.name}! How can I assist you today?` }]);
+            
+            if (!parsedVisitor.email) {
+                setStep('askEmail');
+                setMessages([{ role: 'assistant', content: `Welcome back, ${parsedVisitor.name}! We need your email address to send you the chat reports. What is your email?` }]);
+            } else {
+                setStep('chat');
+                setMessages([{ role: 'assistant', content: `Welcome back, ${parsedVisitor.name}! How can I assist you today?` }]);
+            }
         } else {
             setStep('askMobile');
             setMessages([{ role: 'assistant', content: "Hi! I'm Zhara, your AI Campus Guide 👋\nTo get started, please enter your mobile number." }]);
@@ -109,16 +116,24 @@ const Home = () => {
                 const existingVisitor = await lookupVisitor(mobile);
                 setVisitor(existingVisitor);
                 sessionStorage.setItem('campus_visitor_session', JSON.stringify(existingVisitor));
-                setStep('chat');
-                setTimeout(() => {
-                    setMessages(prev => [...prev, { role: 'assistant', content: `Welcome back, ${existingVisitor.name}! 😊 How can I help you today?` }]);
-                }, 600);
+                
+                if (!existingVisitor.email) {
+                    setStep('askEmail');
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, { role: 'assistant', content: `Welcome back, ${existingVisitor.name}! May I have your email address to send your chat reports?` }]);
+                    }, 600);
+                } else {
+                    setStep('chat');
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, { role: 'assistant', content: `Welcome back, ${existingVisitor.name}! 😊 How can I help you today?` }]);
+                    }, 600);
+                }
             } catch (error) {
-                // New User -> Ask for Name
+                // New User -> Ask for Email first
                 setVisitor(prev => ({ ...prev, mobile }));
-                setStep('askName');
+                setStep('askEmail');
                 setTimeout(() => {
-                    setMessages(prev => [...prev, { role: 'assistant', content: "Nice to meet you! What is your full name?" }]);
+                    setMessages(prev => [...prev, { role: 'assistant', content: "I don't think we've met! May I have your email address first?" }]);
                 }, 600);
             } finally {
                 setIsLoading(false);
@@ -126,11 +141,40 @@ const Home = () => {
             return;
         }
 
-        // 2. Capture Name
+        // 2. Capture Email
+        if (step === 'askEmail') {
+            const email = userText.toLowerCase().trim().replace(/\s/g, "");
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            if (!emailRegex.test(email)) {
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { role: 'assistant', content: "That doesn't look like a valid email address. 🧐 Please try again." }]);
+                }, 500);
+                return;
+            }
+
+            setVisitor(prev => ({ ...prev, email }));
+            
+            if (visitor.name) {
+                // If we already have a name (from returning user), go to chat
+                setStep('chat');
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { role: 'assistant', content: `Got it! I've updated your email. How can I help you today?` }]);
+                }, 600);
+            } else {
+                setStep('askName');
+                setTimeout(() => {
+                    setMessages(prev => [...prev, { role: 'assistant', content: "Got it! And what is your full name?" }]);
+                }, 600);
+            }
+            return;
+        }
+
+        // 3. Capture Name
         if (step === 'askName') {
             setIsLoading(true);
             try {
-                const visitorData = { name: userText, mobile: visitor.mobile };
+                const visitorData = { name: userText, mobile: visitor.mobile, email: visitor.email };
                 const registered = await registerVisitor(visitorData);
                 const updatedVisitor = { ...visitorData, id: registered.id };
                 
@@ -161,6 +205,32 @@ const Home = () => {
         }
     };
 
+    const handleEndSession = async () => {
+        if (!visitor.id) return;
+        
+        setIsEndingSession(true);
+        const { toast } = await import('sonner');
+        const loadingToast = toast.loading("Generating report and sending email...");
+
+        try {
+            const { endSession: endSessionApi } = await import('../services/api.service');
+            await endSessionApi(visitor.id);
+
+            toast.success("Report sent to your email successfully! ✅", { id: loadingToast });
+            
+            // Clear session
+            sessionStorage.removeItem('campus_visitor_session');
+            setVisitor({ name: '', mobile: '', email: '', id: null });
+            setStep('askMobile');
+            setMessages([{ role: 'assistant', content: "Session ended. To start a new chat, please enter your mobile number again." }]);
+        } catch (error) {
+            console.error("End session error:", error);
+            toast.error(error.response?.data?.error || "Failed to send report. Please check if your email is valid.", { id: loadingToast });
+        } finally {
+            setIsEndingSession(false);
+        }
+    };
+
     return (
         <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full pt-36 pb-10 px-4 relative">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex justify-between items-center text-slate-500">
@@ -174,17 +244,13 @@ const Home = () => {
             </div>
         </div>
 
-        {visitor.name && (
+        {visitor.id && (
             <button 
-                onClick={() => {
-                    if(window.confirm("End your session and clear history?")) {
-                        sessionStorage.removeItem('campus_visitor_session');
-                        window.location.reload();
-                    }
-                }}
-                className="px-4 py-2 bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-transparent hover:border-red-100 shadow-sm"
+                onClick={handleEndSession}
+                disabled={isEndingSession}
+                className="px-4 py-2 bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-transparent hover:border-red-100 shadow-sm disabled:opacity-50"
             >
-                End Session
+                {isEndingSession ? 'Sending...' : 'End Session'}
             </button>
         )}
       </motion.div>
@@ -255,7 +321,8 @@ const Home = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-                step === 'askMobile' ? "Ente your mobile number..." : 
+                step === 'askMobile' ? "Enter your mobile number..." : 
+                step === 'askEmail' ? "Enter your email address..." :
                 step === 'askName' ? "Tell me your name..." : 
                 isListening ? "Listening deeply..." : "Search academic data, hostel rules, courses..."
             }

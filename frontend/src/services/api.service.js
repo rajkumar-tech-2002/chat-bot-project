@@ -60,3 +60,8 @@ export const saveAudio = async (formData) => {
     });
     return response.data;
 };
+
+export const endSession = async (visitor_id) => {
+    const response = await axios.post(`${API_URL}/chat/end-session`, { visitor_id });
+    return response.data;
+};

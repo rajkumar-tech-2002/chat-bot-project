@@ -2,12 +2,12 @@ const { Visitor } = require("../models");
 
 exports.create = async (req, res) => {
   try {
-    const { name, mobile } = req.body;
-    if (!name || !mobile) {
-      return res.status(400).send({ message: "Content can not be empty!" });
+    const { name, mobile, email } = req.body;
+    if (!name || !mobile || !email) {
+      return res.status(400).send({ message: "Name, Mobile and Email are mandatory!" });
     }
 
-    const visitor = await Visitor.create(name, mobile);
+    const visitor = await Visitor.create(name, mobile, email);
     res.send(visitor);
   } catch (err) {
     res.status(500).send({ message: err.message || "Some error occurred while creating the Visitor." });

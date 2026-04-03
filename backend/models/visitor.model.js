@@ -1,12 +1,12 @@
 const pool = require('../config/db.config');
 
 const Visitor = {
-  create: async (name, mobile) => {
+  create: async (name, mobile, email) => {
     const [result] = await pool.execute(
-      'INSERT INTO visitors (name, mobile) VALUES (?, ?)',
-      [name, mobile]
+      'INSERT INTO visitors (name, mobile, email) VALUES (?, ?, ?)',
+      [name, mobile, email]
     );
-    return { id: result.insertId, name, mobile };
+    return { id: result.insertId, name, mobile, email };
   },
 
   findAll: async () => {
