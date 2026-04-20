@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Volume2, VolumeX, ArrowLeft, Sparkles, GraduationCap, LogOut } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, ArrowLeft, Sparkles, GraduationCap, LogOut, Delete } from 'lucide-react';
 import { ragChat, saveAudio, lookupVisitor, registerVisitor } from '../services/api.service';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -37,6 +37,7 @@ const ZharaChat = () => {
     const [isMuted, setIsMuted] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [statusText, setStatusText] = useState('Tap the mic to speak');
+    const [isMinimized, setIsMinimized] = useState(false);
 
     // Chat log
     const [chatLog, setChatLog] = useState([]);
@@ -50,6 +51,8 @@ const ZharaChat = () => {
     const chatEndRef = useRef(null);
     const streamRef = useRef(null);
     const transcriptRef = useRef('');
+    const baselineRef = useRef('');
+    const isRestartingRef = useRef(false);
 
     const maskMobile = (mobile) => {
         if (!mobile) return "";
@@ -148,10 +151,16 @@ const ZharaChat = () => {
     }, [gender, speak]);
 
     // ── Start listening ──────────────────────────────────────────────────────
-    const startListening = useCallback(async () => {
-        if (isListening) return;
-        transcriptRef.current = '';
-        setTranscript('');
+    const startListening = useCallback(async (preserveExisting = false) => {
+        if (isListening && !isRestartingRef.current) return;
+        if (!preserveExisting) {
+            transcriptRef.current = '';
+            baselineRef.current = '';
+            setTranscript('');
+        } else {
+            baselineRef.current = transcriptRef.current;
+        }
+        setIsListening(true);
         setStatusText('Listening...');
 
         try {
@@ -182,12 +191,20 @@ const ZharaChat = () => {
                 if (event.results[i].isFinal) final += event.results[i][0].transcript;
             }
             if (final) {
-                transcriptRef.current = final;
-                setTranscript(final);
+                const updated = (baselineRef.current + ' ' + final).trim();
+                transcriptRef.current = updated;
+                setTranscript(updated);
             }
         };
-        recog.onerror = () => { setIsListening(false); setStatusText('Tap the mic to speak'); };
-        recog.onend = () => { setIsListening(false); };
+        recog.onerror = () => { if (!isRestartingRef.current) setIsListening(false); setStatusText('Tap the mic to speak'); };
+        recog.onend = () => {
+            if (isRestartingRef.current) {
+                isRestartingRef.current = false;
+                try { recog.start(); } catch (_) { setIsListening(false); }
+            } else {
+                setIsListening(false);
+            }
+        };
 
         recognitionRef.current = recog;
         recog.start();
@@ -195,9 +212,13 @@ const ZharaChat = () => {
     }, [isListening]);
 
     // ── Stop listening & process ──────────────────────────────────────────────
-    const stopListening = useCallback(async () => {
+    const stopListening = useCallback(async (shouldProcess = true) => {
         setIsListening(false);
-        setStatusText('Thinking...');
+        if (shouldProcess) {
+            setStatusText('Thinking...');
+        } else {
+            setStatusText('Paused');
+        }
 
         if (recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch (_) { }
@@ -218,6 +239,8 @@ const ZharaChat = () => {
             streamRef.current = null;
         }
 
+        if (!shouldProcess) return;
+
         const question = transcriptRef.current.trim();
         if (!question) {
             setStatusText('No speech detected. Try again.');
@@ -226,6 +249,11 @@ const ZharaChat = () => {
 
         const currentStep = onboardingStep;
         setChatLog(prev => [...prev, { role: 'user', content: currentStep === 1 ? maskMobile(question) : question }]);
+
+        // Clear transcript for the next turn IMMEDIATELY after capturing it
+        transcriptRef.current = '';
+        baselineRef.current = '';
+        setTranscript('');
 
         if (currentStep === 1) {
             const mobile = question.replace(/\D/g, "");
@@ -404,7 +432,34 @@ const ZharaChat = () => {
                 console.warn('Audio save failed:', err);
             }
         }
+
     }, [gender, speak, onboardingStep, visitor]);
+
+    const handleTranscriptBackspace = useCallback(() => {
+        setTranscript(prev => {
+            const updated = prev.slice(0, -1);
+            transcriptRef.current = updated;
+            baselineRef.current = updated;
+            return updated;
+        });
+
+        if (isListening && recognitionRef.current) {
+            isRestartingRef.current = true;
+            try { recognitionRef.current.stop(); } catch (_) { isRestartingRef.current = false; }
+        }
+    }, [isListening]);
+
+    const handleTranscriptChange = useCallback((e) => {
+        const val = e.target.value;
+        setTranscript(val);
+        transcriptRef.current = val;
+        baselineRef.current = val;
+
+        if (isListening && recognitionRef.current) {
+            isRestartingRef.current = true;
+            try { recognitionRef.current.stop(); } catch (_) { isRestartingRef.current = false; }
+        }
+    }, [isListening]);
 
     const handleEndSession = async () => {
         if (!visitor.id) {
@@ -470,142 +525,12 @@ const ZharaChat = () => {
             <div className="absolute bottom-0 left-0 w-[800px] h-[800px] bg-violet-500/5 dark:bg-violet-600/10 rounded-full blur-[160px] -z-0 pointer-events-none transition-colors duration-700"></div>
 
             {/* Main area */}
-            <div className="flex flex-col lg:flex-row flex-1 overflow-hidden relative z-10 pt-12">
+            <div className="flex flex-col flex-1 overflow-hidden relative z-10 pt-4">
 
-                {/* End Session Button - Top Right Floating */}
-                {onboardingStep === 0 && visitor.id && (
-                    <motion.button
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleEndSession}
-                        disabled={isEndingSession}
-                        className="absolute top-4 right-10 z-50 flex items-center gap-2 px-6 py-3 rounded-full bg-red-500 text-white font-bold shadow-lg shadow-red-500/20 hover:bg-red-600 transition-colors disabled:opacity-50"
-                    >
-                        {isEndingSession ? (
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                            <LogOut size={18} />
-                        )}
-                        {isEndingSession ? 'Sending...' : 'End Session'}
-                    </motion.button>
-                )}
 
-                {/* ── Left: Premium Avatar Sidebar ── */}
-                <div className="flex flex-col items-center py-12 px-8 lg:w-96 shrink-0 lg:ml-6 lg:mb-6 rounded-[2.5rem] border border-white/60 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl shadow-[0_20px_60px_rgba(0,0,0,0.03)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)] relative overflow-hidden group transition-all duration-700">
-                    <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-500/10 dark:bg-blue-600/20 rounded-full blur-[80px] pointer-events-none"></div>
 
-                    {/* Avatar Display */}
-                    <div className="relative mb-10 mt-8">
-                        <AnimatePresence>
-                            {(isSpeaking || isListening) && (
-                                <motion.div
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0.1, 0.6] }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                    className="absolute inset-[-20%] rounded-full bg-gradient-to-br from-blue-500/20 to-violet-500/20 dark:from-blue-400/30 dark:to-violet-400/30 blur-2xl"
-                                />
-                            )}
-                        </AnimatePresence>
-
-                        <div className={`relative w-56 h-56 p-2 rounded-full border-2 transition-all duration-500 overflow-hidden flex items-center justify-center ${isSpeaking ? 'border-blue-500' : isListening ? 'border-red-500' : 'border-white/80 dark:border-white/20'}`}>
-                            <AnimatePresence>
-                                {isSpeaking && speakingVideoUrl ? (
-                                    <motion.video
-                                        key="speaking-video"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        src={speakingVideoUrl}
-                                        autoPlay
-                                        muted
-                                        loop
-                                        className="w-full h-full object-cover rounded-full absolute inset-0 z-10 dark:opacity-90"
-                                    />
-                                ) : (
-                                    <motion.img
-                                        key="avatar-image"
-                                        initial={{ opacity: 0 }}
-                                        exit={{ opacity: 0 }}
-                                        src={avatarSrc}
-                                        alt={avatarName}
-                                        className="w-full h-full object-cover rounded-full absolute inset-0 z-10 dark:opacity-90"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=7c3aed&color=fff&size=256&font-size=0.4`;
-                                        }}
-                                        animate={{
-                                            opacity: 1,
-                                            ...(isSpeaking ? { y: [0, -5, 0], scale: [1, 1.02, 1] } : { y: 0, scale: 1 })
-                                        }}
-                                        transition={{
-                                            opacity: { duration: 0.4 },
-                                            default: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-                                        }}
-                                    />
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    </div>
-
-                    <div className="text-center z-10">
-                        <h2 className="text-4xl font-black text-slate-900 dark:text-white mb-2 tracking-tighter italic">{avatarName}</h2>
-
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-600/10 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse"></div>
-                                {gender === 'female' ? 'Female' : 'Male'} · AI Guide
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="relative text-center mb-10 w-full px-4 h-20 flex items-center justify-center">
-                        <motion.p
-                            key={statusText}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="text-slate-500 dark:text-slate-400 text-sm font-bold italic leading-relaxed"
-                        >
-                            {isListening && transcript
-                                ? <span className="text-blue-600 dark:text-blue-400 not-italic font-black italic">"{transcript}"</span>
-                                : <span className="opacity-60">{statusText}</span>}
-                        </motion.p>
-                    </div>
-
-                    <div className="relative mt-auto">
-                        <motion.button
-                            whileHover={{ scale: 1.05, y: -2 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={isListening ? stopListening : startListening}
-                            disabled={isSpeaking}
-                            className={`w-24 h-24 rounded-full flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all relative
-                                ${isListening
-                                    ? 'bg-red-500 text-white shadow-red-500/40'
-                                    : isSpeaking
-                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700'
-                                        : 'bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-blue-500 dark:to-indigo-600 text-white shadow-blue-600/30 hover:shadow-blue-600/50'
-                                }`}
-                        >
-                            {isListening ? (
-                                <>
-                                    <motion.div className="absolute inset-0 rounded-full bg-red-400/40" animate={{ scale: [1, 1.8], opacity: [1, 0] }} transition={{ duration: 1, repeat: Infinity }} />
-                                    <MicOff size={32} className="relative z-10" />
-                                </>
-                            ) : (
-                                <Mic size={32} className="relative z-10" />
-                            )}
-                        </motion.button>
-                        <p className={`text-center mt-5 text-[10px] font-black uppercase tracking-[0.2em] transition-colors
-                            ${isListening ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
-                            {isListening ? 'Recording...' : isSpeaking ? 'Speaking...' : 'Push to Talk'}
-                        </p>
-                    </div>
-                </div>
-
-                {/* ── Right: Elevated Chat Log ── */}
-                <div className="flex-1 overflow-y-auto px-8 py-2 pb-10 space-y-6 scrollbar-hide">
+                {/* ── Chat Content ── */}
+                <div className="flex-1 overflow-y-auto px-4 md:px-8 py-2 pt-42 pb-32 space-y-6 scrollbar-hide max-w-5xl mx-auto w-full">
                     <AnimatePresence initial={false}>
                         {chatLog.map((msg, i) => (
                             <motion.div
@@ -614,7 +539,7 @@ const ZharaChat = () => {
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                             >
-                                <div className={`relative max-w-[85%] lg:max-w-[70%] rounded-[2rem] px-8 py-5 text-sm font-bold leading-relaxed transition-all duration-500
+                                <div className={`relative max-w-[90%] lg:max-w-[75%] rounded-[2rem] px-6 md:px-8 py-4 md:py-5 text-sm font-bold leading-relaxed transition-all duration-500
                                     ${msg.role === 'user'
                                         ? 'bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-blue-500 dark:to-indigo-600 text-white rounded-tr-none shadow-[0_15px_40px_rgba(37,99,235,0.25)]'
                                         : 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-white/60 dark:border-white/10 text-slate-700 dark:text-slate-200 rounded-tl-none shadow-[0_10px_30px_rgba(0,0,0,0.02)]'
@@ -638,6 +563,173 @@ const ZharaChat = () => {
                     </AnimatePresence>
                     <div ref={chatEndRef} />
                 </div>
+
+                {/* ── Floating Premium Controller ── */}
+                <motion.div
+                    initial={{ x: 100, opacity: 0 }}
+                    animate={{
+                        x: 0,
+                        opacity: 1,
+                        width: isMinimized ? '110px' : '360px',
+                        height: isMinimized ? '110px' : 'auto'
+                    }}
+                    className="fixed bottom-8 right-8 z-[100] flex flex-col items-center p-6 rounded-[2.5rem] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-3xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden group transition-all duration-500"
+                >
+                    <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-500/10 dark:bg-blue-600/20 rounded-full blur-[80px] pointer-events-none"></div>
+
+                    {/* Minimize/Maximize Toggle */}
+                    <button
+                        onClick={() => setIsMinimized(!isMinimized)}
+                        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/20 hover:bg-white/40 dark:bg-slate-800/40 dark:hover:bg-slate-800/60 transition-colors"
+                    >
+                        <motion.div animate={{ rotate: isMinimized ? 0 : 180 }}>
+                            <Volume2 size={14} className="text-slate-600 dark:text-slate-300" />
+                        </motion.div>
+                    </button>
+
+                    <div className={`flex flex-col items-center transition-all duration-500 ${isMinimized ? 'scale-75 opacity-70 translate-y-2' : 'scale-100 opacity-100'}`}>
+                        {/* Avatar Display */}
+                        <div className={`relative ${isMinimized ? 'mb-0' : 'mb-6 mt-4'}`}>
+                            <AnimatePresence>
+                                {(isSpeaking || isListening) && (
+                                    <motion.div
+                                        initial={{ scale: 0.8, opacity: 0 }}
+                                        animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0.1, 0.6] }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 2, repeat: Infinity }}
+                                        className="absolute inset-[-20%] rounded-full bg-gradient-to-br from-blue-500/20 to-violet-500/20 dark:from-blue-400/30 dark:to-violet-400/30 blur-2xl"
+                                    />
+                                )}
+                            </AnimatePresence>
+
+                            <div className={`relative ${isMinimized ? 'w-16 h-16' : 'w-32 h-32'} p-1 rounded-full border-2 transition-all duration-500 overflow-hidden flex items-center justify-center ${isSpeaking ? 'border-blue-500' : isListening ? 'border-red-500' : 'border-white/80 dark:border-white/20'}`}>
+                                <AnimatePresence>
+                                    {isSpeaking && speakingVideoUrl ? (
+                                        <motion.video
+                                            key="speaking-video"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            src={speakingVideoUrl}
+                                            autoPlay
+                                            muted
+                                            loop
+                                            className="w-full h-full object-cover rounded-full absolute inset-0 z-10 dark:opacity-90"
+                                        />
+                                    ) : (
+                                        <motion.img
+                                            key="avatar-image"
+                                            initial={{ opacity: 0 }}
+                                            exit={{ opacity: 0 }}
+                                            src={avatarSrc}
+                                            alt={avatarName}
+                                            className="w-full h-full object-cover rounded-full absolute inset-0 z-10 dark:opacity-90"
+                                            animate={{
+                                                opacity: 1,
+                                                ...(isSpeaking ? { y: [0, -2, 0], scale: [1, 1.02, 1] } : { y: 0, scale: 1 })
+                                            }}
+                                            transition={{
+                                                opacity: { duration: 0.4 },
+                                                default: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                                            }}
+                                        />
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+
+                        {!isMinimized && (
+                            <>
+                                <div className="text-center z-10 mb-4">
+                                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter italic">{avatarName}</h2>
+                                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-600/10 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400 text-[8px] font-black uppercase tracking-widest">
+                                        <div className="w-1 h-1 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse"></div>
+                                        AI Guide
+                                    </div>
+                                </div>
+
+                                <div className="relative text-center mb-6 w-full px-4 h-12 flex items-center justify-center gap-2">
+                                    {isListening && transcript ? (
+                                        <div className="flex items-center w-full group/input bg-white/10 dark:bg-slate-800/20 rounded-xl px-3 py-1.5 border border-white/20 dark:border-white/5 backdrop-blur-sm">
+                                            <input
+                                                type="text"
+                                                value={transcript}
+                                                onChange={handleTranscriptChange}
+                                                className="flex-1 bg-transparent border-none outline-none text-blue-600 dark:text-blue-400 font-black italic text-sm text-center"
+                                                placeholder="Say something..."
+                                                autoFocus
+                                            />
+                                            <motion.button
+                                                whileHover={{ scale: 1.1, color: '#ef4444' }}
+                                                whileTap={{ scale: 0.9 }}
+                                                onClick={handleTranscriptBackspace}
+                                                className="p-1 text-slate-400 dark:text-slate-500 transition-colors"
+                                                title="Backspace"
+                                            >
+                                                <Delete size={16} />
+                                            </motion.button>
+                                        </div>
+                                    ) : (
+                                        <motion.p
+                                            key={statusText}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-slate-500 dark:text-slate-400 text-xs font-bold italic leading-tight"
+                                        >
+                                            <span className="opacity-60">{statusText}</span>
+                                        </motion.p>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-6 mb-2">
+                                    <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={isListening ? stopListening : () => startListening(transcript.length > 0)}
+                                        disabled={isSpeaking}
+                                        className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all relative
+                                            ${isListening
+                                                ? 'bg-red-500 text-white shadow-red-500/40'
+                                                : isSpeaking
+                                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                                                    : 'bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-blue-500 dark:to-indigo-600 text-white shadow-blue-600/30'
+                                            }`}
+                                    >
+                                        {isListening ? (
+                                            <>
+                                                <motion.div className="absolute inset-0 rounded-full bg-red-400/40" animate={{ scale: [1, 1.8], opacity: [1, 0] }} transition={{ duration: 1, repeat: Infinity }} />
+                                                <MicOff size={24} className="relative z-10" />
+                                            </>
+                                        ) : (
+                                            <Mic size={24} className="relative z-10" />
+                                        )}
+                                    </motion.button>
+
+                                    {onboardingStep === 0 && visitor.id && (
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={handleEndSession}
+                                            disabled={isEndingSession}
+                                            className="w-16 h-16 rounded-full flex items-center justify-center bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 shadow-lg shadow-red-500/10 border border-red-200 dark:border-red-800/50"
+                                            title="End Session"
+                                        >
+                                            {isEndingSession ? (
+                                                <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <LogOut size={24} />
+                                            )}
+                                        </motion.button>
+                                    )}
+                                </div>
+                                <p className={`text-center mt-2 text-[8px] font-black uppercase tracking-[0.2em] transition-colors
+                                    ${isListening ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                                    {isListening ? 'Recording...' : isSpeaking ? 'Speaking...' : 'Push to Talk'}
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </motion.div>
             </div>
         </div>
     );

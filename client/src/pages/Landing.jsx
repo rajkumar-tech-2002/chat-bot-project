@@ -35,8 +35,8 @@ const Landing = () => {
                 >
                     <VoiceVisualizer />
                     <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 text-slate-900 dark:text-white transition-colors duration-500">
-                        Welcome to <br />
-                        <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">Campus AI Portal</span>
+                        Welcome to
+                        <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent"> EchoBot</span>
                     </h1>
                     <p className="text-xl text-slate-500 dark:text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed font-medium transition-colors duration-500">
                         Your intelligent partner for navigating college life. Access course info, admissions details, and hostel data through our premium AI assistant.

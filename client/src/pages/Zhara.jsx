@@ -171,7 +171,7 @@ const Zhara = () => {
             {/* Header */}
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-14 relative z-10">
                 <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest mb-6 shadow-sm">
-                    <Sparkles size={12} /> Welcome, {visitor.name ? visitor.name.split(' ')[0] : 'to Campus AI'}!
+                    <Sparkles size={12} /> Welcome, to Campus AI!
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-white tracking-tight mb-4 transition-colors duration-500">
                     Meet{' '}

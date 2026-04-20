@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, User, ArrowRight, Loader, GraduationCap, BrainCircuit, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Lock, User, ArrowRight, BotMessageSquare, Loader, GraduationCap, BrainCircuit, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../services/api.service';
 import useTheme from '../hooks/useTheme';
@@ -95,10 +95,10 @@ const Login = ({ setAuthenticated }) => {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
                     }}>
-                        <GraduationCap size={22} color="white" />
+                        <BotMessageSquare size={22} color="white" />
                     </div>
                     <span style={{ color: 'white', fontWeight: 800, fontSize: '20px', letterSpacing: '-0.3px' }}>
-                        Campus AI
+                        EchoBot
                     </span>
                 </Link>
 

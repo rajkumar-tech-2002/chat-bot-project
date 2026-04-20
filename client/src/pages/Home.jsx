@@ -45,7 +45,7 @@ const Home = () => {
             }
         } else {
             setStep('askMobile');
-            setMessages([{ role: 'assistant', content: "Hi! I'm Zhara, your AI Campus Guide 👋\nTo get started, please enter your mobile number." }]);
+            setMessages([{ role: 'assistant', content: "Hi!, your Echobot Guide 👋\nTo get started, please enter your mobile number." }]);
         }
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
